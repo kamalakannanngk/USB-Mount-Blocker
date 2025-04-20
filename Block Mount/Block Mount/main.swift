@@ -17,8 +17,6 @@ struct USBInfo {
 
 class DiskMountBlocker {
     private var session: DASession?
-    private var iterator: io_iterator_t = 0
-    private var notificationPort: IONotificationPortRef?
     var blockedUSBs: [USBInfo] = []
     
     init?() {
@@ -124,8 +122,11 @@ func mountApprovalCallback(disk: DADisk, context: UnsafeMutableRawPointer?) -> U
     
     let diskName = String(cString: bsdName)
     
+    var isBlockedUSBFound: Bool = false
+    
     for blockedUSB in monitor.blockedUSBs {
         if blockedUSB.vendorID == vendorID as! Int && blockedUSB.productID == productID as! Int && blockedUSB.serialNumber == serialNumber as! String {
+            isBlockedUSBFound = true
             print("Blocking mount for \(diskName)...")
             let dissenter = DADissenterCreate(
                 kCFAllocatorDefault,
@@ -134,12 +135,13 @@ func mountApprovalCallback(disk: DADisk, context: UnsafeMutableRawPointer?) -> U
             )
             
             return Unmanaged.passRetained(dissenter)
-        } else {
-            print("Allowing mount for \(diskName)...")
-            return nil
         }
     }
-    return nil
+    
+    if !isBlockedUSBFound {
+        print("Allowing mount for \(diskName)...")
+        return nil
+    }
 }
 
 if DiskMountBlocker() != nil {
